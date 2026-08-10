@@ -3,13 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\DanceVideo;
+use App\Services\MediaStorage;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class DanceVideoController extends Controller
 {
+    public function __construct(private readonly MediaStorage $mediaStorage) {}
+
     public function index(Request $request): View
     {
         $term = trim((string) $request->query('busca'));
@@ -30,7 +36,7 @@ class DanceVideoController extends Controller
         return view('videos.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'title' => ['required', 'string', 'max:150'],
@@ -39,11 +45,32 @@ class DanceVideoController extends Controller
             'video' => ['required', 'file', 'mimetypes:video/mp4,video/webm,video/quicktime', 'max:512000'],
         ]);
 
-        $data['cover_path'] = $request->file('cover')?->store('covers', 'public');
-        $data['video_path'] = $request->file('video')->store('videos', 'public');
-        unset($data['cover'], $data['video']);
+        $storedPaths = [];
 
-        $video = DanceVideo::create($data);
+        try {
+            $cover = $request->file('cover');
+            $videoFile = $request->file('video');
+            $data['cover_path'] = $this->mediaStorage->store($cover, 'covers');
+            $storedPaths[] = $data['cover_path'];
+            $data['video_path'] = $this->mediaStorage->store($videoFile, 'videos');
+            $storedPaths[] = $data['video_path'];
+            $data['video_original_name'] = $videoFile->getClientOriginalName();
+            $data['video_mime_type'] = $videoFile->getMimeType();
+            $data['video_size'] = $videoFile->getSize();
+            unset($data['cover'], $data['video']);
+
+            $video = DB::transaction(fn () => DanceVideo::create($data));
+        } catch (Throwable $exception) {
+            $this->cleanUpFailedUpload($storedPaths);
+            Log::error('Falha ao publicar mídia.', [
+                'exception' => $exception,
+                'disk' => $this->mediaStorage->diskName(),
+            ]);
+
+            return back()->withInput()->withErrors([
+                'video' => 'Não foi possível enviar os arquivos. Tente novamente em alguns instantes.',
+            ]);
+        }
 
         return redirect()->route('videos.show', $video)->with('success', 'Vídeo publicado com sucesso!');
     }
@@ -61,7 +88,7 @@ class DanceVideoController extends Controller
         return view('videos.edit', compact('video'));
     }
 
-    public function update(Request $request, DanceVideo $video)
+    public function update(Request $request, DanceVideo $video): RedirectResponse
     {
         $data = $request->validate([
             'title' => ['required', 'string', 'max:150'],
@@ -70,24 +97,50 @@ class DanceVideoController extends Controller
             'video_file' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/quicktime', 'max:512000'],
         ]);
 
-        if ($request->hasFile('cover')) {
-            $newCoverPath = $request->file('cover')->store('covers', 'public');
-            if ($video->cover_path) {
-                Storage::disk('public')->delete($video->cover_path);
+        $newPaths = [];
+        $oldPaths = [];
+
+        try {
+            if ($request->hasFile('cover')) {
+                $data['cover_path'] = $this->mediaStorage->store($request->file('cover'), 'covers');
+                $newPaths[] = $data['cover_path'];
+                $oldPaths[] = $video->cover_path;
             }
-            $data['cover_path'] = $newCoverPath;
+
+            if ($request->hasFile('video_file')) {
+                $videoFile = $request->file('video_file');
+                $data['video_path'] = $this->mediaStorage->store($videoFile, 'videos');
+                $newPaths[] = $data['video_path'];
+                $oldPaths[] = $video->video_path;
+                $data['video_original_name'] = $videoFile->getClientOriginalName();
+                $data['video_mime_type'] = $videoFile->getMimeType();
+                $data['video_size'] = $videoFile->getSize();
+            }
+
+            unset($data['cover'], $data['video_file']);
+            DB::transaction(fn () => $video->update($data));
+        } catch (Throwable $exception) {
+            $this->cleanUpFailedUpload($newPaths);
+            Log::error('Falha ao atualizar mídia.', [
+                'exception' => $exception,
+                'video_id' => $video->id,
+                'disk' => $this->mediaStorage->diskName(),
+            ]);
+
+            return back()->withInput()->withErrors([
+                'video_file' => 'Não foi possível salvar as alterações. Os arquivos anteriores foram mantidos.',
+            ]);
         }
 
-        if ($request->hasFile('video_file')) {
-            $newVideoPath = $request->file('video_file')->store('videos', 'public');
-            if ($video->video_path) {
-                Storage::disk('public')->delete($video->video_path);
-            }
-            $data['video_path'] = $newVideoPath;
+        try {
+            $this->mediaStorage->delete($oldPaths);
+        } catch (Throwable $exception) {
+            Log::warning('Mídia antiga não pôde ser removida após substituição.', [
+                'exception' => $exception,
+                'video_id' => $video->id,
+                'paths' => $oldPaths,
+            ]);
         }
-
-        unset($data['cover'], $data['video_file']);
-        $video->update($data);
 
         return redirect()->route('videos.show', $video)->with('success', 'Música atualizada com sucesso!');
     }
@@ -100,9 +153,48 @@ class DanceVideoController extends Controller
         $filename = str($video->title.' - '.$video->artist)->slug().'.'.$extension;
 
         return response()->streamDownload(function () use ($video) {
-            $stream = Storage::disk('public')->readStream($video->video_path);
-            fpassthru($stream);
-            fclose($stream);
+            $stream = $this->mediaStorage->readStream($video->video_path);
+
+            try {
+                fpassthru($stream);
+            } finally {
+                fclose($stream);
+            }
         }, $filename);
+    }
+
+    public function destroy(DanceVideo $video): RedirectResponse
+    {
+        try {
+            $this->mediaStorage->delete([$video->cover_path, $video->video_path]);
+            DB::transaction(fn () => $video->delete());
+        } catch (Throwable $exception) {
+            Log::error('Falha ao excluir mídia.', [
+                'exception' => $exception,
+                'video_id' => $video->id,
+                'disk' => $this->mediaStorage->diskName(),
+            ]);
+
+            return back()->withErrors([
+                'video' => 'Não foi possível excluir esta música. Nenhuma nova tentativa será feita automaticamente.',
+            ]);
+        }
+
+        return redirect()->route('home')->with('success', 'Música e arquivos excluídos com sucesso!');
+    }
+
+    /**
+     * @param  array<int, string|null>  $paths
+     */
+    private function cleanUpFailedUpload(array $paths): void
+    {
+        try {
+            $this->mediaStorage->delete($paths);
+        } catch (Throwable $cleanupException) {
+            Log::warning('Falha ao limpar arquivos de um upload incompleto.', [
+                'exception' => $cleanupException,
+                'paths' => $paths,
+            ]);
+        }
     }
 }

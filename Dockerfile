@@ -42,12 +42,14 @@ ENV APP_ENV=production \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libicu-dev \
+        libcurl4-openssl-dev \
         libonig-dev \
         libpq-dev \
         libsqlite3-dev \
         libzip-dev \
     && docker-php-ext-install -j"$(nproc)" \
         bcmath \
+        curl \
         intl \
         mbstring \
         opcache \
