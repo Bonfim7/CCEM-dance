@@ -41,5 +41,6 @@ class ExampleTest extends TestCase
             'artist' => 'Minha Cantora',
         ]);
         Storage::disk('public')->assertExists($video->video_path);
+        $this->assertSame('/storage/'.$video->video_path, $video->video_url);
     }
 }

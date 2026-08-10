@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 class DanceVideo extends Model
 {
@@ -16,11 +15,16 @@ class DanceVideo extends Model
 
     public function getCoverUrlAttribute(): ?string
     {
-        return $this->cover_path ? Storage::disk('public')->url($this->cover_path) : null;
+        return $this->publicUrl($this->cover_path);
     }
 
     public function getVideoUrlAttribute(): ?string
     {
-        return $this->video_path ? Storage::disk('public')->url($this->video_path) : null;
+        return $this->publicUrl($this->video_path);
+    }
+
+    private function publicUrl(?string $path): ?string
+    {
+        return $path ? '/storage/'.ltrim(str_replace('\\', '/', $path), '/') : null;
     }
 }
