@@ -4,7 +4,7 @@
 
 @section('content')
 <section class="hero">
-    <div class="eyebrow"><i></i> CCEM — Círculo Católico Estrela da Manhã</div>
+    <div class="eyebrow"><i></i> CCEM — Ministério de Dança</div>
     <h1 class="manifesto">Converteste o meu choro<br>em <em>dança</em>, afastastes de mim<br>a tristeza e me cercaste de <em>alegria.</em></h1>
     <p>Coreografias das nossas músicas de animação para ensaiar, celebrar e espalhar alegria.</p>
     <form class="search" action="{{ route('home') }}">

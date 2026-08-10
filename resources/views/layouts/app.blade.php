@@ -13,9 +13,9 @@
 </head>
 <body>
     <header class="site-header">
-        <a class="brand" href="{{ route('home') }}" aria-label="CCEM Dance - início">
+        <a class="brand" href="{{ route('home') }}" aria-label="CCEM Ministério de Dança - início">
             <span class="brand-mark">C</span>
-            <span>CCEM <b>Dance</b></span>
+            <span>CCEM <b>Ministério de Dança</b></span>
         </a>
         <nav>
             <a href="{{ route('home') }}">Explorar</a>
@@ -28,7 +28,7 @@
     @endif
 
     <main>@yield('content')</main>
-    <footer><span>CCEM Dance</span><span>Feito para quem vive em movimento.</span></footer>
+    <footer><span>CCEM — Ministério de Dança</span><span>Círculo Católico Estrela da Manhã</span></footer>
     <nav class="mobile-nav" aria-label="Navegação principal">
         <a class="{{ request()->routeIs('home', 'videos.show') ? 'active' : '' }}" href="{{ route('home') }}">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5M5.5 10v10h13V10M9 20v-6h6v6"/></svg>
