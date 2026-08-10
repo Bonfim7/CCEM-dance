@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f7f4ee">
     <meta name="description" content="Vídeos, música e movimento em um só lugar.">
     <title>@yield('title', 'CCEM Dance')</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,5 +29,15 @@
 
     <main>@yield('content')</main>
     <footer><span>CCEM Dance</span><span>Feito para quem vive em movimento.</span></footer>
+    <nav class="mobile-nav" aria-label="Navegação principal">
+        <a class="{{ request()->routeIs('home', 'videos.show') ? 'active' : '' }}" href="{{ route('home') }}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5M5.5 10v10h13V10M9 20v-6h6v6"/></svg>
+            <span>Explorar</span>
+        </a>
+        <a class="{{ request()->routeIs('videos.create') ? 'active' : '' }}" href="{{ route('videos.create') }}">
+            <span class="mobile-plus">+</span>
+            <span>Publicar</span>
+        </a>
+    </nav>
 </body>
 </html>

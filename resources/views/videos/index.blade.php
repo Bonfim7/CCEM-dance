@@ -35,7 +35,7 @@
                         @if ($video->cover_url)<img src="{{ $video->cover_url }}" alt="Capa de {{ $video->title }}">@endif
                         <span class="style">{{ $video->dance_style }}</span>
                         <span class="cover-letter">{{ Str::upper(Str::substr($video->title, 0, 1)) }}</span>
-                        <span class="play"><svg viewBox="0 0 24 24"><path d="m9 7 8 5-8 5V7Z"/></svg></span>
+                        <span class="play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9 7 8 5-8 5V7Z"/></svg></span>
                     </div>
                     <div class="card-copy">
                         <h3>{{ $video->title }}</h3>
