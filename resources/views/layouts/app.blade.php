@@ -14,7 +14,7 @@
 <body>
     <header class="site-header">
         <a class="brand" href="{{ route('home') }}" aria-label="CCEM Ministério de Dança - início">
-            <span class="brand-mark">C</span>
+            <img class="brand-logo" src="{{ asset('images/ccem-logo.png') }}" alt="" aria-hidden="true">
             <span>CCEM <b>Ministério de Dança</b></span>
         </a>
         <nav>
