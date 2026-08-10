@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#f7f4ee">
+    <meta name="theme-color" content="#0b0910">
     <meta name="description" content="Vídeos, música e movimento em um só lugar.">
     <title>@yield('title', 'CCEM Dance')</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
