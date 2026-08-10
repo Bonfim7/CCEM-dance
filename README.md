@@ -1,3 +1,21 @@
+# CCEM Dance
+
+Catálogo responsivo para publicar, reproduzir e baixar vídeos de dança.
+
+## Executando localmente
+
+Use o comando abaixo para iniciar o servidor com suporte a vídeos de até 500 MB:
+
+```bash
+composer serve
+```
+
+A aplicação ficará disponível em `http://127.0.0.1:8000`.
+
+> Evite usar `php artisan serve` diretamente para uploads grandes, pois esse comando utiliza os limites globais do `php.ini` instalado na máquina.
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
