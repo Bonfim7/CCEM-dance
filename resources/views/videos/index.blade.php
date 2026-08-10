@@ -4,9 +4,9 @@
 
 @section('content')
 <section class="hero">
-    <div class="eyebrow"><i></i> Sinta o ritmo. Viva o movimento.</div>
-    <h1>Uma dança para<br><em>cada batida.</em></h1>
-    <p>Descubra coreografias, aprenda novos passos e leve suas músicas favoritas para onde quiser.</p>
+    <div class="eyebrow"><i></i> CCEM — Círculo Católico Estrela da Manhã</div>
+    <h1 class="manifesto">Converteste o meu choro<br>em <em>dança</em>, afastastes de mim<br>a tristeza e me cercaste de <em>alegria.</em></h1>
+    <p>Coreografias das nossas músicas de animação para ensaiar, celebrar e espalhar alegria.</p>
     <form class="search" action="{{ route('home') }}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3m2.3-5.2a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
         <input name="busca" value="{{ $term }}" placeholder="Busque por música, cantor ou ritmo..." aria-label="Buscar vídeos">
