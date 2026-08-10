@@ -29,7 +29,7 @@ class ExampleTest extends TestCase
         $response = $this->post('/videos', [
             'title' => 'Minha Música',
             'artist' => 'Minha Cantora',
-            'dance_style' => 'Pop',
+            'cover' => UploadedFile::fake()->image('capa.jpg'),
             'video' => UploadedFile::fake()->create('coreografia.mp4', 100, 'video/mp4'),
         ]);
 
@@ -42,5 +42,28 @@ class ExampleTest extends TestCase
         ]);
         Storage::disk('public')->assertExists($video->video_path);
         $this->assertSame('/storage/'.$video->video_path, $video->video_url);
+    }
+
+    public function test_a_dance_video_can_be_edited(): void
+    {
+        Storage::fake('public');
+        $oldCoverPath = UploadedFile::fake()->image('antiga.jpg')->store('covers', 'public');
+        $video = DanceVideo::create([
+            'title' => 'Título antigo',
+            'artist' => 'Cantor antigo',
+            'cover_path' => $oldCoverPath,
+            'video_path' => UploadedFile::fake()->create('antigo.mp4', 100, 'video/mp4')->store('videos', 'public'),
+        ]);
+
+        $response = $this->put(route('videos.update', $video), [
+            'title' => 'Título novo',
+            'artist' => 'Cantora nova',
+            'cover' => UploadedFile::fake()->image('nova.jpg'),
+        ]);
+
+        $response->assertRedirect(route('videos.show', $video));
+        $this->assertDatabaseHas('dance_videos', ['title' => 'Título novo', 'artist' => 'Cantora nova']);
+        Storage::disk('public')->assertMissing($oldCoverPath);
+        Storage::disk('public')->assertExists($video->fresh()->cover_path);
     }
 }

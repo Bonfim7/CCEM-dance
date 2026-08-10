@@ -10,7 +10,7 @@ class DanceVideo extends Model
     use HasFactory;
 
     protected $fillable = [
-        'title', 'artist', 'dance_style', 'description', 'cover_path', 'video_path',
+        'title', 'artist', 'cover_path', 'video_path',
     ];
 
     public function getCoverUrlAttribute(): ?string
