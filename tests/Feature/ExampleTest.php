@@ -3,14 +3,23 @@
 namespace Tests\Feature;
 
 use App\Models\DanceVideo;
+use App\Services\MediaStorage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['filesystems.default' => 'public']);
+    }
 
     /**
      * A basic test example.
@@ -39,7 +48,14 @@ class ExampleTest extends TestCase
         $this->assertDatabaseHas('dance_videos', [
             'title' => 'Minha Música',
             'artist' => 'Minha Cantora',
+            'video_original_name' => 'coreografia.mp4',
+            'video_mime_type' => 'video/mp4',
         ]);
+        $this->assertMatchesRegularExpression(
+            '/^videos\/[0-9a-f-]{36}\.mp4$/',
+            $video->video_path,
+        );
+        Storage::disk('public')->assertExists($video->cover_path);
         Storage::disk('public')->assertExists($video->video_path);
         $this->assertSame('/storage/'.$video->video_path, $video->video_url);
     }
@@ -47,23 +63,127 @@ class ExampleTest extends TestCase
     public function test_a_dance_video_can_be_edited(): void
     {
         Storage::fake('public');
-        $oldCoverPath = UploadedFile::fake()->image('antiga.jpg')->store('covers', 'public');
+        $oldCoverPath = UploadedFile::fake()->image('antiga.jpg')->storeAs('covers', 'antiga.jpg', 'public');
+        $oldVideoPath = UploadedFile::fake()->create('antigo.mp4', 100, 'video/mp4')
+            ->storeAs('videos', 'antigo.mp4', 'public');
         $video = DanceVideo::create([
             'title' => 'Título antigo',
             'artist' => 'Cantor antigo',
             'cover_path' => $oldCoverPath,
-            'video_path' => UploadedFile::fake()->create('antigo.mp4', 100, 'video/mp4')->store('videos', 'public'),
+            'video_path' => $oldVideoPath,
         ]);
 
         $response = $this->put(route('videos.update', $video), [
             'title' => 'Título novo',
             'artist' => 'Cantora nova',
             'cover' => UploadedFile::fake()->image('nova.jpg'),
+            'video_file' => UploadedFile::fake()->create('novo.mp4', 120, 'video/mp4'),
         ]);
 
         $response->assertRedirect(route('videos.show', $video));
-        $this->assertDatabaseHas('dance_videos', ['title' => 'Título novo', 'artist' => 'Cantora nova']);
+        $this->assertDatabaseHas('dance_videos', [
+            'title' => 'Título novo',
+            'artist' => 'Cantora nova',
+            'video_original_name' => 'novo.mp4',
+        ]);
         Storage::disk('public')->assertMissing($oldCoverPath);
+        Storage::disk('public')->assertMissing($oldVideoPath);
         Storage::disk('public')->assertExists($video->fresh()->cover_path);
+        Storage::disk('public')->assertExists($video->fresh()->video_path);
+    }
+
+    public function test_a_dance_video_and_its_files_can_be_deleted(): void
+    {
+        Storage::fake('public');
+        $coverPath = UploadedFile::fake()->image('capa.jpg')->storeAs('covers', 'capa.jpg', 'public');
+        $videoPath = UploadedFile::fake()->create('video.mp4', 100, 'video/mp4')
+            ->storeAs('videos', 'video.mp4', 'public');
+        $video = DanceVideo::create([
+            'title' => 'Música para excluir',
+            'artist' => 'CCEM',
+            'cover_path' => $coverPath,
+            'video_path' => $videoPath,
+        ]);
+
+        $response = $this->delete(route('videos.destroy', $video));
+
+        $response->assertRedirect(route('home'));
+        $this->assertDatabaseMissing('dance_videos', ['id' => $video->id]);
+        Storage::disk('public')->assertMissing($coverPath);
+        Storage::disk('public')->assertMissing($videoPath);
+    }
+
+    public function test_a_storage_failure_does_not_create_an_incomplete_record(): void
+    {
+        $storage = Mockery::mock(MediaStorage::class);
+        $storage->shouldReceive('store')
+            ->once()
+            ->with(Mockery::type(UploadedFile::class), 'covers')
+            ->andReturn('covers/550e8400-e29b-41d4-a716-446655440000.jpg');
+        $storage->shouldReceive('store')
+            ->once()
+            ->with(Mockery::type(UploadedFile::class), 'videos')
+            ->andThrow(new \RuntimeException('R2 indisponível'));
+        $storage->shouldReceive('delete')
+            ->once()
+            ->with(['covers/550e8400-e29b-41d4-a716-446655440000.jpg']);
+        $storage->shouldReceive('diskName')->once()->andReturn('s3');
+        $this->app->instance(MediaStorage::class, $storage);
+
+        $response = $this->from(route('videos.create'))->post(route('videos.store'), [
+            'title' => 'Upload com falha',
+            'artist' => 'CCEM',
+            'cover' => UploadedFile::fake()->image('capa.jpg'),
+            'video' => UploadedFile::fake()->create('video.mp4', 100, 'video/mp4'),
+        ]);
+
+        $response->assertRedirect(route('videos.create'));
+        $response->assertSessionHasErrors('video');
+        $this->assertDatabaseCount('dance_videos', 0);
+    }
+
+    public function test_an_r2_video_receives_a_temporary_signed_url(): void
+    {
+        config([
+            'filesystems.default' => 's3',
+            'filesystems.disks.s3.key' => 'fake-access-key',
+            'filesystems.disks.s3.secret' => 'fake-secret-key',
+            'filesystems.disks.s3.region' => 'auto',
+            'filesystems.disks.s3.bucket' => 'ccem-dance-videos',
+            'filesystems.disks.s3.endpoint' => 'https://example-account.r2.cloudflarestorage.com',
+        ]);
+        Storage::forgetDisk('s3');
+
+        $url = app(MediaStorage::class)->url('videos/550e8400-e29b-41d4-a716-446655440000.mp4');
+
+        $this->assertStringStartsWith(
+            'https://ccem-dance-videos.example-account.r2.cloudflarestorage.com/videos/',
+            $url,
+        );
+        $this->assertStringContainsString('X-Amz-Signature=', $url);
+    }
+
+    public function test_a_storage_deletion_failure_keeps_the_database_record(): void
+    {
+        $video = DanceVideo::create([
+            'title' => 'Música protegida',
+            'artist' => 'CCEM',
+            'cover_path' => 'covers/capa.jpg',
+            'video_path' => 'videos/video.mp4',
+        ]);
+        $storage = Mockery::mock(MediaStorage::class);
+        $storage->shouldReceive('delete')
+            ->once()
+            ->with(['covers/capa.jpg', 'videos/video.mp4'])
+            ->andThrow(new \RuntimeException('R2 indisponível'));
+        $storage->shouldReceive('diskName')->once()->andReturn('s3');
+        $this->app->instance(MediaStorage::class, $storage);
+
+        $response = $this->from(route('videos.edit', $video))
+            ->delete(route('videos.destroy', $video));
+
+        $response->assertRedirect(route('videos.edit', $video));
+        $response->assertSessionHasErrors('video');
+        $this->assertDatabaseHas('dance_videos', ['id' => $video->id]);
     }
 }
