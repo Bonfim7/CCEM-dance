@@ -31,6 +31,19 @@ class ExampleTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_the_publication_form_is_available_and_posts_to_the_store_route(): void
+    {
+        $response = $this->get(route('videos.create'));
+
+        $response->assertOk()
+            ->assertSee('action="'.route('videos.store').'"', false)
+            ->assertSee('method="post"', false)
+            ->assertSee('enctype="multipart/form-data"', false)
+            ->assertSee('name="_token"', false)
+            ->assertSee('name="cover"', false)
+            ->assertSee('name="video"', false);
+    }
+
     public function test_a_dance_video_can_be_published(): void
     {
         Storage::fake('public');
@@ -58,6 +71,36 @@ class ExampleTest extends TestCase
         Storage::disk('public')->assertExists($video->cover_path);
         Storage::disk('public')->assertExists($video->video_path);
         $this->assertSame('/storage/'.$video->video_path, $video->video_url);
+    }
+
+    public function test_a_published_video_appears_in_the_listing(): void
+    {
+        $video = DanceVideo::create([
+            'title' => 'Alegria do CCEM',
+            'artist' => 'Ministério de Dança',
+        ]);
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSee($video->title)
+            ->assertSee($video->artist)
+            ->assertSee(route('videos.show', $video));
+    }
+
+    public function test_publication_validation_returns_clear_feedback(): void
+    {
+        Storage::fake('public');
+
+        $response = $this->from(route('videos.create'))->post(route('videos.store'), [
+            'title' => 'Arquivo inválido',
+            'artist' => 'CCEM',
+            'cover' => UploadedFile::fake()->create('capa.txt', 10, 'text/plain'),
+            'video' => UploadedFile::fake()->create('video.txt', 10, 'text/plain'),
+        ]);
+
+        $response->assertRedirect(route('videos.create'))
+            ->assertSessionHasErrors(['cover', 'video']);
+        $this->assertDatabaseCount('dance_videos', 0);
     }
 
     public function test_a_dance_video_can_be_edited(): void
@@ -127,7 +170,7 @@ class ExampleTest extends TestCase
         $storage->shouldReceive('delete')
             ->once()
             ->with(['covers/550e8400-e29b-41d4-a716-446655440000.jpg']);
-        $storage->shouldReceive('diskName')->once()->andReturn('s3');
+        $storage->shouldReceive('diskName')->twice()->andReturn('s3');
         $this->app->instance(MediaStorage::class, $storage);
 
         $response = $this->from(route('videos.create'))->post(route('videos.store'), [
@@ -185,5 +228,18 @@ class ExampleTest extends TestCase
         $response->assertRedirect(route('videos.edit', $video));
         $response->assertSessionHasErrors('video');
         $this->assertDatabaseHas('dance_videos', ['id' => $video->id]);
+    }
+
+    public function test_the_media_diagnostic_checks_put_exists_and_delete(): void
+    {
+        Storage::fake('public');
+
+        $this->artisan('media:diagnose', ['--connection' => true])
+            ->expectsOutputToContain('PUT')
+            ->expectsOutputToContain('EXISTS')
+            ->expectsOutputToContain('DELETE')
+            ->assertSuccessful();
+
+        $this->assertSame([], Storage::disk('public')->allFiles('diagnostics'));
     }
 }
