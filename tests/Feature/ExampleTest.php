@@ -31,6 +31,28 @@ class ExampleTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_music_search_ignores_uppercase_and_lowercase(): void
+    {
+        DanceVideo::create([
+            'title' => 'Vontade do Pai',
+            'artist' => 'Aline Barros',
+        ]);
+        DanceVideo::create([
+            'title' => 'Outra Canção',
+            'artist' => 'Outro Cantor',
+        ]);
+
+        $this->get(route('home', ['busca' => 'vontade']))
+            ->assertOk()
+            ->assertSee('Vontade do Pai')
+            ->assertDontSee('Outra Canção');
+
+        $this->get(route('home', ['busca' => 'ALINE BARROS']))
+            ->assertOk()
+            ->assertSee('Vontade do Pai')
+            ->assertDontSee('Outra Canção');
+    }
+
     public function test_the_publication_form_is_available_and_posts_to_the_store_route(): void
     {
         $response = $this->get(route('videos.create'));

@@ -21,10 +21,11 @@ class DanceVideoController extends Controller
     public function index(Request $request): View
     {
         $term = trim((string) $request->query('busca'));
+        $caseInsensitiveLike = DB::connection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
         $videos = DanceVideo::query()
-            ->when($term, fn ($query) => $query->where(function ($query) use ($term) {
-                $query->where('title', 'like', "%{$term}%")
-                    ->orWhere('artist', 'like', "%{$term}%");
+            ->when($term, fn ($query) => $query->where(function ($query) use ($term, $caseInsensitiveLike) {
+                $query->where('title', $caseInsensitiveLike, "%{$term}%")
+                    ->orWhere('artist', $caseInsensitiveLike, "%{$term}%");
             }))
             ->latest()
             ->paginate(12)
