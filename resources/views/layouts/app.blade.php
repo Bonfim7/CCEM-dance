@@ -39,5 +39,6 @@
             <span>Publicar</span>
         </a>
     </nav>
+    <script src="{{ asset('js/upload-form.js') }}" defer></script>
 </body>
 </html>

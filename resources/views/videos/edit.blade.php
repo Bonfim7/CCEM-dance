@@ -13,10 +13,14 @@
         @csrf
         @method('PUT')
         @if ($errors->any())<div class="errors"><b>Revise os campos:</b><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
-        <label><span>Nome da música</span><input name="title" value="{{ old('title', $video->title) }}" required></label>
-        <label><span>Cantor(a)</span><input name="artist" value="{{ old('artist', $video->artist) }}" required></label>
-        <label class="file-field"><span>Nova capa <small>(opcional, JPG/PNG até 5 MB)</small></span><input type="file" name="cover" accept="image/*"></label>
-        <label class="file-field"><span>Novo vídeo <small>(opcional, MP4/WebM até 500 MB)</small></span><input type="file" name="video_file" accept="video/mp4,video/webm,video/quicktime"></label>
+        <div class="field-row">
+            <label><span>Nome da música</span><input name="title" value="{{ old('title', $video->title) }}" required placeholder="Ex.: Ninguém Te Ama Como Eu"></label>
+            <label><span>Cantor(a)</span><input name="artist" value="{{ old('artist', $video->artist) }}" required placeholder="Ex.: Padre Marcelo Rossi"></label>
+        </div>
+        <div class="field-row">
+            @include('videos.partials.file-picker', ['kind' => 'image', 'label' => 'Nova capa', 'help' => '(opcional, JPG/PNG até 5 MB)', 'name' => 'cover', 'accept' => 'image/*', 'button' => 'Trocar capa', 'empty' => 'A capa atual será mantida'])
+            @include('videos.partials.file-picker', ['kind' => 'video', 'label' => 'Novo vídeo', 'help' => '(opcional, MP4/WebM até 500 MB)', 'name' => 'video_file', 'accept' => 'video/mp4,video/webm,video/quicktime', 'button' => 'Trocar vídeo', 'empty' => 'O vídeo atual será mantido'])
+        </div>
         <button class="button submit" type="submit">Salvar alterações →</button>
     </form>
 </section>

@@ -8,12 +8,12 @@
         @csrf
         @if ($errors->any())<div class="errors"><b>Revise os campos:</b><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
         <div class="field-row">
-            <label><span>Nome da música</span><input name="title" value="{{ old('title') }}" required placeholder="Ex.: Levitating"></label>
-            <label><span>Cantor(a)</span><input name="artist" value="{{ old('artist') }}" required placeholder="Ex.: Dua Lipa"></label>
+            <label><span>Nome da música</span><input name="title" value="{{ old('title') }}" required placeholder="Ex.: Ninguém Te Ama Como Eu"></label>
+            <label><span>Cantor(a)</span><input name="artist" value="{{ old('artist') }}" required placeholder="Ex.: Padre Marcelo Rossi"></label>
         </div>
         <div class="field-row">
-            <label class="file-field"><span>Capa da música <small>(JPG/PNG, até 5 MB)</small></span><input type="file" name="cover" accept="image/*" required></label>
-            <label class="file-field"><span>Arquivo do vídeo <small>(MP4/WebM, até 500 MB)</small></span><input type="file" name="video" accept="video/mp4,video/webm,video/quicktime" required></label>
+            @include('videos.partials.file-picker', ['kind' => 'image', 'label' => 'Capa da música', 'help' => '(JPG/PNG, até 5 MB)', 'name' => 'cover', 'accept' => 'image/*', 'button' => 'Escolher capa', 'empty' => 'Veja a imagem antes de publicar', 'required' => true])
+            @include('videos.partials.file-picker', ['kind' => 'video', 'label' => 'Arquivo do vídeo', 'help' => '(MP4/WebM, até 500 MB)', 'name' => 'video', 'accept' => 'video/mp4,video/webm,video/quicktime', 'button' => 'Escolher vídeo', 'empty' => 'Confira o arquivo antes de enviar', 'required' => true])
         </div>
         <button class="button submit" type="submit">Publicar vídeo →</button>
     </form>
