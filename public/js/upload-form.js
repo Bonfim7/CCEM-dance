@@ -65,6 +65,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    document.querySelectorAll('form[data-confirm-delete]').forEach((form) => {
+        form.addEventListener('submit', (event) => {
+            const confirmed = window.confirm(
+                'Excluir esta música permanentemente? A capa e o vídeo também serão removidos. Não é possível reverter esta ação.',
+            );
+
+            if (!confirmed) event.preventDefault();
+        });
+    });
 });
 
 window.addEventListener('pageshow', () => {

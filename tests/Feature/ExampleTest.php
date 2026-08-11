@@ -157,6 +157,22 @@ class ExampleTest extends TestCase
         Storage::disk('public')->assertExists($video->fresh()->video_path);
     }
 
+    public function test_the_edit_page_warns_before_permanent_deletion(): void
+    {
+        $video = DanceVideo::create([
+            'title' => 'Música para revisar',
+            'artist' => 'CCEM',
+        ]);
+
+        $this->get(route('videos.edit', $video))
+            ->assertOk()
+            ->assertSee('Excluir esta música')
+            ->assertSee('removidos permanentemente')
+            ->assertSee('action="'.route('videos.destroy', $video).'"', false)
+            ->assertSee('value="DELETE"', false)
+            ->assertSee('data-confirm-delete', false);
+    }
+
     public function test_a_dance_video_and_its_files_can_be_deleted(): void
     {
         Storage::fake('public');
