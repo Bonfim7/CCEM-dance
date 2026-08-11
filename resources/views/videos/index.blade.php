@@ -6,7 +6,7 @@
 <section class="hero">
     <img class="hero-logo" src="{{ asset('images/ccem-logo.png') }}" alt="Logo do CCEM — Círculo Católico Estrela da Manhã">
     <div class="eyebrow"><i></i> CCEM — Ministério de Dança</div>
-    <h1 class="manifesto">Converteste o meu choro<br>em <em>dança</em>, afastastes de mim<br>a tristeza e me cercaste de <em>alegria.</em></h1>
+    <h1 class="manifesto">Converteste o meu choro <br>em <em>dança</em>, afastastes de mim <br>a tristeza e me cercaste de <em>alegria.</em></h1>
     <p>Coreografias das nossas músicas de animação para ensaiar, celebrar e espalhar alegria.</p>
     <form class="search" action="{{ route('home') }}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3m2.3-5.2a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"/></svg>
