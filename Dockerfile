@@ -45,12 +45,15 @@ ENV APP_ENV=production \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
         libicu-dev \
         libcurl4-openssl-dev \
         libonig-dev \
         libpq-dev \
         libsqlite3-dev \
         libzip-dev \
+        openssl \
     && docker-php-ext-install -j"$(nproc)" \
         bcmath \
         curl \

@@ -2,9 +2,12 @@
 
 namespace App\Console\Commands;
 
+use Composer\InstalledVersions;
+use GuzzleHttp\Client;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 class DiagnoseMediaStorage extends Command
@@ -29,6 +32,10 @@ class DiagnoseMediaStorage extends Command
 
         if (! $this->option('connection')) {
             return self::SUCCESS;
+        }
+
+        if (($diskConfig['driver'] ?? null) === 's3') {
+            $this->runTlsDiagnostics((string) ($diskConfig['endpoint'] ?? ''));
         }
 
         $path = 'diagnostics/'.Str::uuid().'.txt';
@@ -108,5 +115,190 @@ class DiagnoseMediaStorage extends Command
         }
 
         return $put && $exists && $read && $deleted && $gone ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function runTlsDiagnostics(string $endpoint): void
+    {
+        $parts = parse_url($endpoint);
+        $host = is_array($parts) ? ($parts['host'] ?? null) : null;
+
+        if (! is_string($host) || $host === '' || ($parts['scheme'] ?? null) !== 'https') {
+            $this->warn('Diagnóstico TLS não executado: AWS_ENDPOINT não é uma URL HTTPS válida.');
+
+            return;
+        }
+
+        $this->newLine();
+        $this->info('Ambiente TLS do container');
+        $this->table(['Item', 'Valor seguro'], [
+            ['Imagem base', 'php:8.3-apache-bookworm'],
+            ['PHP', PHP_VERSION.' ('.PHP_SAPI.')'],
+            ['libcurl do PHP', $this->phpCurlVersion()],
+            ['OpenSSL do PHP', OPENSSL_VERSION_TEXT],
+            ['AWS SDK PHP', $this->packageVersion('aws/aws-sdk-php')],
+            ['Guzzle', $this->packageVersion('guzzlehttp/guzzle')],
+            ['curl.cainfo', $this->configuredPath('curl.cainfo')],
+            ['openssl.cafile', $this->configuredPath('openssl.cafile')],
+            ['openssl.capath', $this->configuredPath('openssl.capath')],
+        ]);
+
+        $this->info('Proxy do container');
+        $proxyRows = [];
+        foreach (['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY'] as $name) {
+            $proxyRows[] = [$name, $this->safeProxyDescription(getenv($name))];
+        }
+        $this->table(['Variável', 'Estado seguro'], $proxyRows);
+
+        $this->runDiagnosticProcess('php -v', ['php', '-v']);
+        $this->runDiagnosticProcess('curl --version', ['curl', '--version']);
+        $this->runDiagnosticProcess('openssl version -a', ['openssl', 'version', '-a']);
+        $this->runDiagnosticProcess('curl -Iv', [
+            'curl', '-I', '-v', '--connect-timeout', '15', '--max-time', '30', $endpoint,
+        ]);
+        $this->runDiagnosticProcess('curl --tlsv1.2 -Iv', [
+            'curl', '--tlsv1.2', '--tls-max', '1.2', '-I', '-v',
+            '--connect-timeout', '15', '--max-time', '30', $endpoint,
+        ]);
+        $this->runDiagnosticProcess('curl --tlsv1.3 -Iv', [
+            'curl', '--tlsv1.3', '--tls-max', '1.3', '-I', '-v',
+            '--connect-timeout', '15', '--max-time', '30', $endpoint,
+        ]);
+
+        $this->runPhpCurlProbe($endpoint);
+        $this->runGuzzleProbe($endpoint);
+
+        $openssl = new Process([
+            'openssl', 's_client', '-brief', '-connect', $host.':443', '-servername', $host,
+        ]);
+        $openssl->setInput('');
+        $this->runDiagnosticProcess('openssl s_client', process: $openssl);
+    }
+
+    private function runPhpCurlProbe(string $endpoint): void
+    {
+        $this->newLine();
+        $this->line('<fg=cyan>### PHP ext-curl anônimo</>');
+        $verbose = fopen('php://temp', 'w+');
+        $curl = curl_init($endpoint);
+
+        curl_setopt_array($curl, [
+            CURLOPT_NOBODY => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_VERBOSE => true,
+            CURLOPT_STDERR => $verbose,
+        ]);
+
+        curl_exec($curl);
+        $errorNumber = curl_errno($curl);
+        $error = curl_error($curl);
+        $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        curl_close($curl);
+
+        rewind($verbose);
+        $this->line($this->redactDiagnosticOutput((string) stream_get_contents($verbose)));
+        fclose($verbose);
+        $this->line("HTTP: {$status}; cURL errno: {$errorNumber}; erro: ".($error ?: 'nenhum'));
+        $this->line('Resultado: '.($errorNumber === 0 ? 'OK' : 'ERRO'));
+    }
+
+    private function runGuzzleProbe(string $endpoint): void
+    {
+        $this->newLine();
+        $this->line('<fg=cyan>### Guzzle anônimo</>');
+        $debug = fopen('php://temp', 'w+');
+
+        try {
+            $response = (new Client)->request('HEAD', $endpoint, [
+                'connect_timeout' => 15,
+                'debug' => $debug,
+                'http_errors' => false,
+                'timeout' => 30,
+                'verify' => true,
+            ]);
+            $this->line('HTTP: '.$response->getStatusCode());
+            $this->line('Resultado: OK');
+        } catch (Throwable $exception) {
+            $this->line('Resultado: ERRO');
+            $this->line($exception::class.': '.$this->redactDiagnosticOutput($exception->getMessage()));
+        } finally {
+            rewind($debug);
+            $this->line($this->redactDiagnosticOutput((string) stream_get_contents($debug)));
+            fclose($debug);
+        }
+    }
+
+    /** @param array<int, string> $command */
+    private function runDiagnosticProcess(string $label, array $command = [], ?Process $process = null): void
+    {
+        $this->newLine();
+        $this->line("<fg=cyan>### {$label}</>");
+
+        try {
+            $process ??= new Process($command);
+            $process->setTimeout(35);
+            $process->run();
+            $output = trim($process->getOutput().PHP_EOL.$process->getErrorOutput());
+
+            $this->line($this->redactDiagnosticOutput($output));
+            $this->line('Resultado: '.($process->isSuccessful() ? 'OK' : 'ERRO').' (exit '.$process->getExitCode().')');
+        } catch (Throwable $exception) {
+            $this->line('Resultado: ERRO');
+            $this->line($exception::class.': '.$this->redactDiagnosticOutput($exception->getMessage()));
+        }
+    }
+
+    private function redactDiagnosticOutput(string $output): string
+    {
+        $output = preg_replace('/^(>\s*Proxy-Authorization:).*$/mi', '$1 <redacted>', $output) ?? $output;
+        $output = preg_replace('#(https?://)[^/@\s]+:[^/@\s]+@#i', '$1<redacted>@', $output) ?? $output;
+
+        return $output;
+    }
+
+    private function safeProxyDescription(string|false $value): string
+    {
+        if ($value === false || trim($value) === '') {
+            return 'não configurado';
+        }
+
+        $parts = parse_url($value);
+        if (! is_array($parts) || ! isset($parts['host'])) {
+            return 'configurado (valor oculto)';
+        }
+
+        $description = 'configurado; host='.$parts['host'];
+        $description .= isset($parts['port']) ? '; porta='.$parts['port'] : '';
+        $description .= isset($parts['user']) || isset($parts['pass']) ? '; credenciais=sim' : '; credenciais=não';
+
+        return $description;
+    }
+
+    private function phpCurlVersion(): string
+    {
+        if (! function_exists('curl_version')) {
+            return 'ext-curl não carregada';
+        }
+
+        $version = curl_version();
+
+        return ($version['version'] ?? 'desconhecida').' / '.($version['ssl_version'] ?? 'SSL desconhecido');
+    }
+
+    private function packageVersion(string $package): string
+    {
+        return class_exists(InstalledVersions::class)
+            ? (InstalledVersions::getPrettyVersion($package) ?? 'não instalado')
+            : 'indisponível';
+    }
+
+    private function configuredPath(string $setting): string
+    {
+        $value = (string) ini_get($setting);
+
+        return $value !== '' ? $value : 'padrão do sistema';
     }
 }
