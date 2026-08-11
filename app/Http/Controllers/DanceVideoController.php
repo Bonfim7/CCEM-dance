@@ -186,12 +186,23 @@ class DanceVideoController extends Controller
         return redirect()->route('videos.show', $video)->with('success', 'Música atualizada com sucesso!');
     }
 
-    public function download(DanceVideo $video): StreamedResponse
+    public function download(DanceVideo $video): RedirectResponse|StreamedResponse
     {
         abort_unless($video->video_path, 404);
 
         $extension = pathinfo($video->video_path, PATHINFO_EXTENSION);
         $filename = str($video->title.' - '.$video->artist)->slug().'.'.$extension;
+        $temporaryUrl = $this->mediaStorage->temporaryDownloadUrl($video->video_path, $filename);
+
+        if ($temporaryUrl) {
+            Log::info('Download redirecionado para URL temporária do storage.', [
+                'disk' => $this->mediaStorage->diskName(),
+                'video_id' => $video->id,
+                'path' => $video->video_path,
+            ]);
+
+            return redirect()->away($temporaryUrl);
+        }
 
         return response()->streamDownload(function () use ($video) {
             $stream = $this->mediaStorage->readStream($video->video_path);

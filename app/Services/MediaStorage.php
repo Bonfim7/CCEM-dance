@@ -18,6 +18,7 @@ class MediaStorage
     public function store(UploadedFile $file, string $directory): string
     {
         $diskName = $this->diskName();
+        $storageContext = $this->storageContext($diskName);
 
         if (config('media.require_cloud_disk') && $diskName !== 's3') {
             throw new RuntimeException(
@@ -27,18 +28,23 @@ class MediaStorage
 
         $extension = strtolower($file->guessExtension() ?: 'bin');
         $filename = Str::uuid().'.'.$extension;
+
+        Log::info('PUT iniciou.', $storageContext + [
+            'directory' => trim($directory, '/'),
+            'filename' => $filename,
+        ]);
+
         $path = $file->storeAs(trim($directory, '/'), $filename, $diskName);
 
         if (! $path) {
             throw new RuntimeException('O storage não confirmou o envio do arquivo.');
         }
 
+        Log::info('PUT terminou.', $storageContext + ['path' => $path]);
+
         $exists = Storage::disk($diskName)->exists($path);
 
-        Log::info('Objeto confirmado no storage.', [
-            'disk' => $diskName,
-            'bucket' => config("filesystems.disks.{$diskName}.bucket"),
-            'endpoint' => config("filesystems.disks.{$diskName}.endpoint"),
+        Log::info('EXISTS terminou.', $storageContext + [
             'path' => $path,
             'exists' => $exists,
         ]);
@@ -81,12 +87,44 @@ class MediaStorage
     /** @return resource */
     public function readStream(string $path)
     {
-        $stream = Storage::disk($this->diskName())->readStream($path);
+        $diskName = $this->diskName();
+        $context = $this->storageContext($diskName) + ['path' => $path];
 
-        if (! is_resource($stream)) {
+        Log::info('READSTREAM iniciou.', $context);
+        $stream = Storage::disk($diskName)->readStream($path);
+        $opened = is_resource($stream);
+
+        Log::info('READSTREAM terminou.', $context + ['opened' => $opened]);
+
+        if (! $opened) {
             throw new RuntimeException('Não foi possível abrir o arquivo no storage.');
         }
 
         return $stream;
+    }
+
+    public function temporaryDownloadUrl(string $path, string $filename): ?string
+    {
+        if ($this->diskName() !== 's3') {
+            return null;
+        }
+
+        return Storage::disk('s3')->temporaryUrl(
+            $path,
+            now()->addMinutes((int) config('filesystems.temporary_url_ttl', 360)),
+            [
+                'ResponseContentDisposition' => 'attachment; filename="'.addcslashes($filename, '"\\').'"',
+            ],
+        );
+    }
+
+    /** @return array{disk: string, bucket: mixed, endpoint: mixed} */
+    private function storageContext(string $diskName): array
+    {
+        return [
+            'disk' => $diskName,
+            'bucket' => config("filesystems.disks.{$diskName}.bucket"),
+            'endpoint' => config("filesystems.disks.{$diskName}.endpoint"),
+        ];
     }
 }

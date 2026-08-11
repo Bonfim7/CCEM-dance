@@ -228,6 +228,26 @@ class ExampleTest extends TestCase
         $this->assertStringContainsString('X-Amz-Signature=', $url);
     }
 
+    public function test_an_r2_download_redirects_to_storage_without_reopening_the_video(): void
+    {
+        $video = DanceVideo::create([
+            'title' => 'Vontade do Pai',
+            'artist' => 'Aline Barros',
+            'video_path' => 'videos/550e8400-e29b-41d4-a716-446655440000.mp4',
+        ]);
+        $storage = Mockery::mock(MediaStorage::class);
+        $storage->shouldReceive('temporaryDownloadUrl')
+            ->once()
+            ->with($video->video_path, 'vontade-do-pai-aline-barros.mp4')
+            ->andReturn('https://example.r2.cloudflarestorage.com/signed-download');
+        $storage->shouldReceive('diskName')->once()->andReturn('s3');
+        $storage->shouldNotReceive('readStream');
+        $this->app->instance(MediaStorage::class, $storage);
+
+        $this->get(route('videos.download', $video))
+            ->assertRedirect('https://example.r2.cloudflarestorage.com/signed-download');
+    }
+
     public function test_a_storage_deletion_failure_keeps_the_database_record(): void
     {
         $video = DanceVideo::create([
@@ -259,6 +279,7 @@ class ExampleTest extends TestCase
         $this->artisan('media:diagnose', ['--connection' => true])
             ->expectsOutputToContain('PUT')
             ->expectsOutputToContain('EXISTS')
+            ->expectsOutputToContain('READ')
             ->expectsOutputToContain('DELETE')
             ->assertSuccessful();
 
