@@ -73,6 +73,27 @@ class ExampleTest extends TestCase
         $this->assertSame('/storage/'.$video->video_path, $video->video_url);
     }
 
+    public function test_production_upload_cannot_fall_back_to_local_storage(): void
+    {
+        Storage::fake('public');
+        config([
+            'filesystems.default' => 'public',
+            'media.require_cloud_disk' => true,
+        ]);
+
+        $response = $this->from(route('videos.create'))->post(route('videos.store'), [
+            'title' => 'Sem fallback local',
+            'artist' => 'CCEM',
+            'cover' => UploadedFile::fake()->image('capa.jpg'),
+            'video' => UploadedFile::fake()->create('video.mp4', 100, 'video/mp4'),
+        ]);
+
+        $response->assertRedirect(route('videos.create'))
+            ->assertSessionHasErrors('video');
+        $this->assertDatabaseCount('dance_videos', 0);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
     public function test_a_published_video_appears_in_the_listing(): void
     {
         $video = DanceVideo::create([

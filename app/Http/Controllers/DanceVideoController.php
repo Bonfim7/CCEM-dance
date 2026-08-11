@@ -78,11 +78,17 @@ class DanceVideoController extends Controller
             Log::info('Iniciando upload da capa.', $context);
             $data['cover_path'] = $this->mediaStorage->store($cover, 'covers');
             $storedPaths[] = $data['cover_path'];
-            Log::info('Upload da capa concluído.', $context + ['path' => $data['cover_path']]);
+            Log::info('Upload da capa concluído e confirmado.', $context + [
+                'path' => $data['cover_path'],
+                'exists' => true,
+            ]);
             Log::info('Iniciando upload do vídeo.', $context);
             $data['video_path'] = $this->mediaStorage->store($videoFile, 'videos');
             $storedPaths[] = $data['video_path'];
-            Log::info('Upload do vídeo concluído.', $context + ['path' => $data['video_path']]);
+            Log::info('Upload do vídeo concluído e confirmado.', $context + [
+                'path' => $data['video_path'],
+                'exists' => true,
+            ]);
             $data['video_original_name'] = $videoFile->getClientOriginalName();
             $data['video_mime_type'] = $videoFile->getMimeType();
             $data['video_size'] = $videoFile->getSize();
