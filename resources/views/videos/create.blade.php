@@ -15,7 +15,10 @@
             @include('videos.partials.file-picker', ['kind' => 'image', 'label' => 'Capa da música', 'help' => '(JPG/PNG, até 5 MB)', 'name' => 'cover', 'accept' => 'image/*', 'button' => 'Escolher capa', 'empty' => 'Veja a imagem antes de publicar', 'required' => true])
             @include('videos.partials.file-picker', ['kind' => 'video', 'label' => 'Arquivo do vídeo', 'help' => '(MP4/WebM, até 500 MB)', 'name' => 'video', 'accept' => 'video/mp4,video/webm,video/quicktime', 'button' => 'Escolher vídeo', 'empty' => 'Confira o arquivo antes de enviar', 'required' => true])
         </div>
-        <button class="button submit" type="submit" data-loading-text="Enviando vídeo…">Publicar vídeo →</button>
+        <div class="form-actions">
+            <span class="form-actions-note">Revise os arquivos antes de concluir.</span>
+            <button class="button submit" type="submit" data-loading-text="Enviando vídeo…">Publicar vídeo →</button>
+        </div>
     </form>
 </section>
 @endsection
