@@ -28,9 +28,11 @@ mkdir -p \
 
 if [ "${DB_CONNECTION:-sqlite}" = "sqlite" ]; then
     sqlite_database="${DB_DATABASE:-/var/www/html/database/database.sqlite}"
-    mkdir -p "$(dirname "$sqlite_database")"
+    sqlite_directory="$(dirname "$sqlite_database")"
+    mkdir -p "$sqlite_directory"
     touch "$sqlite_database"
-    chown www-data:www-data "$sqlite_database"
+    chown www-data:www-data "$sqlite_directory" "$sqlite_database"
+    chmod ug+rwX "$sqlite_directory" "$sqlite_database"
 fi
 
 chown -R www-data:www-data storage bootstrap/cache
@@ -42,5 +44,9 @@ php artisan route:clear
 php artisan view:clear
 php artisan migrate --force
 php artisan optimize
+
+if [ "${MEDIA_STORAGE_DIAGNOSTIC:-false}" = "true" ]; then
+    php artisan media:diagnose --connection
+fi
 
 exec "$@"

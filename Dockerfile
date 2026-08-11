@@ -37,6 +37,8 @@ FROM php:8.3-apache-bookworm AS runtime
 
 ENV APP_ENV=production \
     APP_DEBUG=false \
+    LOG_CHANNEL=stderr \
+    LOG_LEVEL=info \
     PORT=10000
 
 RUN apt-get update \
@@ -67,6 +69,7 @@ WORKDIR /var/www/html
 COPY --from=vendor /app ./
 COPY --from=frontend /app/public/build ./public/build
 COPY docker/apache-vhost.conf /etc/apache2/sites-available/000-default.conf.template
+COPY docker/php-production.ini /usr/local/etc/php/conf.d/ccem-production.ini
 COPY docker/entrypoint.sh /usr/local/bin/ccem-entrypoint
 
 RUN chmod +x /usr/local/bin/ccem-entrypoint \
