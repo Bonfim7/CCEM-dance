@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Aws\Exception\AwsException;
 use Composer\InstalledVersions;
 use GuzzleHttp\Client;
 use Illuminate\Console\Command;
@@ -26,8 +27,14 @@ class DiagnoseMediaStorage extends Command
             ['driver', (string) ($diskConfig['driver'] ?? 'não configurado')],
             ['bucket', (string) ($diskConfig['bucket'] ?? 'não configurado')],
             ['endpoint', (string) ($diskConfig['endpoint'] ?? 'não configurado')],
+            ['root/prefixo', (string) ($diskConfig['root'] ?? '') ?: '(vazio)'],
+            ['path-style', ($diskConfig['use_path_style_endpoint'] ?? false) ? 'true' : 'false'],
+            ['region', (string) ($diskConfig['region'] ?? 'não configurada')],
+            ['assinatura', (string) ($diskConfig['signature_version'] ?? 'v4 (padrão do SDK S3)')],
             ['access key presente', filled($diskConfig['key'] ?? null) ? 'sim' : 'não'],
             ['secret presente', filled($diskConfig['secret'] ?? null) ? 'sim' : 'não'],
+            ['access key sem espaços externos', $this->hasOuterWhitespace($diskConfig['key'] ?? null) ? 'não' : 'sim'],
+            ['secret sem espaços externos', $this->hasOuterWhitespace($diskConfig['secret'] ?? null) ? 'não' : 'sim'],
         ]);
 
         if (! $this->option('connection')) {
@@ -104,6 +111,7 @@ class DiagnoseMediaStorage extends Command
 
         if ($failure) {
             $this->error($failure::class.': '.$failure->getMessage());
+            $this->reportAwsFailure($failure);
         }
 
         if ($put && ! $gone) {
@@ -136,6 +144,8 @@ class DiagnoseMediaStorage extends Command
             ['libcurl do PHP', $this->phpCurlVersion()],
             ['OpenSSL do PHP', OPENSSL_VERSION_TEXT],
             ['AWS SDK PHP', $this->packageVersion('aws/aws-sdk-php')],
+            ['Flysystem AWS S3', $this->packageVersion('league/flysystem-aws-s3-v3')],
+            ['Flysystem', $this->packageVersion('league/flysystem')],
             ['Guzzle', $this->packageVersion('guzzlehttp/guzzle')],
             ['curl.cainfo', $this->configuredPath('curl.cainfo')],
             ['openssl.cafile', $this->configuredPath('openssl.cafile')],
@@ -300,5 +310,58 @@ class DiagnoseMediaStorage extends Command
         $value = (string) ini_get($setting);
 
         return $value !== '' ? $value : 'padrão do sistema';
+    }
+
+    private function hasOuterWhitespace(mixed $value): bool
+    {
+        return is_string($value) && $value !== trim($value);
+    }
+
+    private function reportAwsFailure(Throwable $failure): void
+    {
+        $exception = $failure;
+
+        while (! $exception instanceof AwsException && $exception->getPrevious()) {
+            $exception = $exception->getPrevious();
+        }
+
+        if (! $exception instanceof AwsException) {
+            $this->warn('A exceção não contém uma resposta estruturada do AWS SDK.');
+
+            return;
+        }
+
+        $request = $exception->getRequest();
+        $authorization = $request?->getHeaderLine('Authorization') ?? '';
+        preg_match('/Credential=[^\/]+\/([^,\s]+)/', $authorization, $scope);
+        preg_match('/SignedHeaders=([^,\s]+)/', $authorization, $signedHeaders);
+
+        $response = $exception->getResponse();
+        $this->newLine();
+        $this->info('Resposta assinada do R2 (sem credenciais)');
+        $this->table(['Item', 'Valor seguro'], [
+            ['HTTP status', (string) ($exception->getStatusCode() ?: 'indisponível')],
+            ['AWS error code', (string) ($exception->getAwsErrorCode() ?: 'indisponível')],
+            ['AWS error type', (string) ($exception->getAwsErrorType() ?: 'indisponível')],
+            ['AWS request ID', (string) ($exception->getAwsRequestId() ?: 'indisponível')],
+            ['método', $request?->getMethod() ?? 'indisponível'],
+            ['host', $request?->getUri()->getHost() ?? 'indisponível'],
+            ['path', $request?->getUri()->getPath() ?? 'indisponível'],
+            ['algoritmo', str_starts_with($authorization, 'AWS4-HMAC-SHA256') ? 'AWS4-HMAC-SHA256' : 'não identificado'],
+            ['credential scope', $scope[1] ?? 'não identificado'],
+            ['headers assinados', $signedHeaders[1] ?? 'não identificado'],
+            ['x-amz-date presente', $request?->hasHeader('x-amz-date') ? 'sim' : 'não'],
+            ['payload hash presente', $request?->hasHeader('x-amz-content-sha256') ? 'sim' : 'não'],
+            ['cf-ray', $response?->getHeaderLine('cf-ray') ?: 'indisponível'],
+        ]);
+
+        $code = (string) $exception->getAwsErrorCode();
+        if (in_array($code, ['SignatureDoesNotMatch', 'AuthorizationHeaderMalformed', 'InvalidRequest'], true)) {
+            $this->warn('Classificação: provável problema de assinatura/configuração SigV4.');
+        } elseif (in_array($code, ['AccessDenied', 'InvalidAccessKeyId'], true)) {
+            $this->warn('Classificação: assinatura aceita pelo serviço; verifique token, bucket e permissão Object Read & Write.');
+        } else {
+            $this->warn('Classificação inconclusiva; use o código AWS e o request ID acima.');
+        }
     }
 }

@@ -1,5 +1,14 @@
 <?php
 
+$s3Bucket = trim((string) env('AWS_BUCKET', ''));
+$s3Endpoint = rtrim((string) env('AWS_ENDPOINT', ''), '/');
+
+// O SDK adiciona o bucket ao endpoint quando path-style está ativo. Evita
+// que um endpoint configurado acidentalmente com "/<bucket>" o duplique.
+if ($s3Bucket !== '' && str_ends_with($s3Endpoint, '/'.$s3Bucket)) {
+    $s3Endpoint = substr($s3Endpoint, 0, -strlen('/'.$s3Bucket));
+}
+
 return [
 
     /*
@@ -54,9 +63,10 @@ return [
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
             'region' => env('AWS_DEFAULT_REGION', 'auto'),
-            'bucket' => env('AWS_BUCKET'),
+            'bucket' => $s3Bucket,
             'url' => env('AWS_URL'),
-            'endpoint' => env('AWS_ENDPOINT'),
+            'endpoint' => $s3Endpoint,
+            'root' => '',
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
             'visibility' => 'private',
             'throw' => true,
