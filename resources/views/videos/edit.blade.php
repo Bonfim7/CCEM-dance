@@ -21,7 +21,7 @@
             @include('videos.partials.file-picker', ['kind' => 'image', 'label' => 'Nova capa', 'help' => '(opcional, JPG/PNG até 5 MB)', 'name' => 'cover', 'accept' => 'image/*', 'button' => 'Trocar capa', 'empty' => 'A capa atual será mantida'])
             @include('videos.partials.file-picker', ['kind' => 'video', 'label' => 'Novo vídeo', 'help' => '(opcional, MP4/WebM até 500 MB)', 'name' => 'video_file', 'accept' => 'video/mp4,video/webm,video/quicktime', 'button' => 'Trocar vídeo', 'empty' => 'O vídeo atual será mantido'])
         </div>
-        <button class="button submit" type="submit">Salvar alterações →</button>
+        <button class="button submit" type="submit" data-loading-text="Salvando alterações…">Salvar alterações →</button>
     </form>
 </section>
 @endsection

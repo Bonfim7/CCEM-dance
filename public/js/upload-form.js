@@ -45,6 +45,39 @@ document.addEventListener('DOMContentLoaded', () => {
             input.focus();
         });
     });
+
+    document.querySelectorAll('form.upload-form').forEach((form) => {
+        const submit = form.querySelector('button[type="submit"]');
+
+        form.addEventListener('submit', (event) => {
+            if (form.dataset.submitting === 'true') {
+                event.preventDefault();
+                return;
+            }
+
+            form.dataset.submitting = 'true';
+            form.setAttribute('aria-busy', 'true');
+
+            if (submit) {
+                submit.dataset.originalText = submit.textContent.trim();
+                submit.disabled = true;
+                submit.innerHTML = `<span class="submit-spinner" aria-hidden="true"></span>${submit.dataset.loadingText || 'Enviando…'}`;
+            }
+        });
+    });
+});
+
+window.addEventListener('pageshow', () => {
+    document.querySelectorAll('form.upload-form[data-submitting="true"]').forEach((form) => {
+        const submit = form.querySelector('button[type="submit"]');
+        delete form.dataset.submitting;
+        form.removeAttribute('aria-busy');
+
+        if (submit) {
+            submit.disabled = false;
+            submit.textContent = submit.dataset.originalText || 'Enviar';
+        }
+    });
 });
 
 function formatBytes(bytes) {

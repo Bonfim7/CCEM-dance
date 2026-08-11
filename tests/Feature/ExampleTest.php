@@ -41,7 +41,8 @@ class ExampleTest extends TestCase
             ->assertSee('enctype="multipart/form-data"', false)
             ->assertSee('name="_token"', false)
             ->assertSee('name="cover"', false)
-            ->assertSee('name="video"', false);
+            ->assertSee('name="video"', false)
+            ->assertSee('data-loading-text="Enviando vídeo…"', false);
     }
 
     public function test_a_dance_video_can_be_published(): void
