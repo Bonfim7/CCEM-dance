@@ -37,8 +37,10 @@ FROM php:8.3-apache-bookworm AS runtime
 
 ENV APP_ENV=production \
     APP_DEBUG=false \
+    FILESYSTEM_DISK=s3 \
     LOG_CHANNEL=stderr \
     LOG_LEVEL=info \
+    MEDIA_REQUIRE_CLOUD_DISK=true \
     PORT=10000
 
 RUN apt-get update \
